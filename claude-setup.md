@@ -1,7 +1,27 @@
 # Environment Setup
 
+## Claude
 
-## Neo4j MCP
+## Custom Commands
+
+```
+$ mkdir -p .claude/commands/ && cd $1
+$ touch context-prime.md
+$ zed context-prime.md
+```
+
+```markdown
+READ README.md, CLAUDE.md, then run `eza -T --git-ignore` and `git ls-files` to understand the context of the project.
+
+use the schema tools from any database related mcp server (postgres, neo4j, etc)
+
+Be sure to also READ: .cursor/rules/**,  $ARGUMENTS and nothing else.
+```
+
+
+### MCP Servers
+
+**mcp-neo4j-cypher**
 ```shell
 claude mcp add-json cobol-neo4j '{
   "command": "uvx",
@@ -15,7 +35,7 @@ claude mcp add-json cobol-neo4j '{
 }'
 ```
 
-## Postgresql MCP
+**postgres-mcp:**
 
 ```shell
 claude mcp add-json cobol-postgres '{
