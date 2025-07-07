@@ -1,6 +1,6 @@
 {
   "name": "s3-csv-autosigner",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A TypeScript library for uploading CSV files to S3 and generating presigned URLs, with automatic AWS configuration discovery",
   "author": "Your Name <your.email@example.com>",
   "license": "MIT",
