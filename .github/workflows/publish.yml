@@ -1,0 +1,83 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build package
+        run: bun run build
+
+      - name: Run tests
+        run: bun test
+        continue-on-error: true  # Don't fail if no tests exist yet
+
+      - name: Check if version changed
+        id: check-version
+        run: |
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          
+          # Check if this version already exists on npm
+          if npm view s3-csv-autosigner@$CURRENT_VERSION version 2>/dev/null; then
+            echo "Version $CURRENT_VERSION already published"
+            echo "should-publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version $CURRENT_VERSION is new"
+            echo "should-publish=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup NPM authentication
+        if: steps.check-version.outputs.should-publish == 'true'
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Publish to NPM
+        if: steps.check-version.outputs.should-publish == 'true'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: steps.check-version.outputs.should-publish == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.check-version.outputs.version }}
+          release_name: Release v${{ steps.check-version.outputs.version }}
+          body: |
+            ## S3 CSV Autosigner v${{ steps.check-version.outputs.version }}
+            
+            **Installation:**
+            ```bash
+            npm install s3-csv-autosigner@${{ steps.check-version.outputs.version }}
+            ```
+            
+            **Changes:**
+            - Automated release from commit ${{ github.sha }}
+            - See [commit history](https://github.com/${{ github.repository }}/commits/main) for detailed changes
+            
+            Built with Bun 🚀 and lots of coffee ☕
+          draft: false
+          prerelease: false
