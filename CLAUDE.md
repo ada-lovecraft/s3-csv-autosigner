@@ -4,142 +4,86 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an agentic data exploration system for analyzing legacy COBOL applications. The system decomposes monolithic COBOL programs into atomic BusinessFunction units, enabling precise field-level dependency analysis and modernization planning.
+This is an S3 autosigner library that uploads CSV files to S3 and generates pre-signed links. The project is currently in a major refactor state with most existing code marked for deletion.
+
+**Key Details:**
+- Runtime: Bun (not Node.js)
+- Language: TypeScript
+- CLI Framework: Commander.js
+- Project Type: Library with both programmatic API and global CLI
+- Main Entry: `index.ts`
+
+## Development Commands
+
+**Core Commands:**
+- `bun install` - Install dependencies
+- `bun run <script>` - Run package.json scripts
+- `bun <file.ts>` - Execute TypeScript files directly
+- `bun test` - Run tests
+- `bun --hot <file.ts>` - Run with hot reload
+
+**Build & Development:**
+- No build step required (Bun handles TypeScript directly)
+- Use `bun` instead of `node`, `npm`, `yarn`, or `pnpm`
+- Environment variables are automatically loaded from `.env`
+
+## Architecture & Structure
+
+**Current State:**
+- Project is in heavy refactor mode with most files marked for deletion
+- Core structure: `index.ts` (entry point), `src/` (main code), `tools/` (CLI utilities)
+
+**S3 Implementation Pattern:**
+- Uses AWS SDK v3 (`@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`)
+- Core workflow: Upload CSV → Generate presigned URL for future access
+- Uploads to S3 with `PutObjectCommand`
+- Generates presigned URLs with 1-hour expiration (configurable)
+- ContentType set to "text/csv" for all uploads
+- Example implementation in `ai_docs/s3-node-example.md`
+
+**Configuration System:**
+- Automatic .env file discovery up the directory tree
+- Smart AWS credential detection and validation
+- Verbose logging for configuration troubleshooting
+- Fallback to AWS SDK default credential provider chain
+- Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_SESSION_TOKEN`
+- Priority order: explicit config → environment variables → AWS SDK defaults
+- Uses `src/lib/env-finder.ts` for environment discovery
+- Uses `src/lib/aws-config.ts` for AWS credential management
+
+**CLI Tools Architecture:**
+- Single Responsibility Principle - each tool does one thing
+- Place CLI tools in `tools/` directory
+- Use Commander.js for argument parsing
+- Default to stdin input with flags for other capabilities
+- Tools should be configurable via arguments and flags
+
+**TypeScript Configuration:**
+- Strict mode enabled with modern ES features
+- Bundler module resolution
+- No emit (Bun handles compilation)
+- Import TypeScript extensions allowed
+
+## Bun-Specific Guidelines
+
+**Preferred APIs:**
+- `Bun.serve()` for HTTP servers (not Express)
+- `bun:sqlite` for SQLite (not better-sqlite3)
+- `Bun.redis` for Redis (not ioredis)
+- `Bun.sql` for Postgres (not pg)
+- Built-in WebSocket (not ws library)
+- `Bun.$\`command\`` for shell commands (not execa)
+
+**Frontend Integration:**
+- HTML imports with `Bun.serve()`
+- Direct imports of .tsx/.jsx files in HTML
+- CSS bundling via `<link>` tags
+- Hot module replacement available
 
 ## Project Principles
 
-- This is an exploratory project. Never try to maintain "legacy" functionality.
-- Create small cli tools that satisfy the Single Responsibility Paradigm. place these tools in the @tools/ directory
-- All code should be written in typescript.
-- This project uses the `bun` runtime, and as such, a build step is never required.
-- Use the `commander` node package to streamline cli tool creation
-- Cli tools should be configurable via arguments and flags
-- Cli tools should default to stdin for input but should provide flags and arguments to allow for other capabilities
-- Don't ever edit the package.json file directly when adding or removing dependencies. always use the `bun add` or `bun remove` commands
-
-## Architecture
-
-### Dual Database Design
-
-The system uses two complementary databases:
-
-**Neo4j Graph Database** (`bolt://localhost:7687`):
-- Stores entity relationships and enables graph traversal queries
-- Models data flow hierarchy: CompilationUnit → Module → DataFile → Record → Field
-- Tracks BusinessFunction I/O relationships for field lineage analysis
-- Current data: 1 CompilationUnit, 36 Modules, 6,526 BusinessFunctions, 7,056 Fields
-
-**PostgreSQL Database** (`postgresql://cobol:cobolanalysis@localhost:5432/cobolanalysis`):
-- `entitydescriptions`: JSONB metadata for all entities (959 records)
-- `sourcefiles`: Original COBOL source code (103 files)
-- `virtualfiles`: Assembled BusinessFunction code (6,526 virtual files)
-- `substitutions`: Code substitution tracking for virtual file assembly
-
-### Core Concepts
-
-**BusinessFunction**: Atomic business logic units that transform input fields to exactly one output field. Each has:
-- Naming pattern: `[INPUT_FIELD_1,INPUT_FIELD_2] -> OUTPUT_GROUP:OUTPUT_FIELD`
-- Virtual COBOL code assembled from scattered source locations
-- Complete field dependency tracking
-
-**Field Hierarchy**: Recursive structure where GroupFields contain other Fields, terminating in ElementalFields (primitives).
-
-## MCP Server Configuration
-
-The system requires two MCP servers to be configured:
-
-```bash
-# Neo4j MCP
-claude mcp add-json cobol-neo4j '{
-  "command": "uvx",
-  "args": [ "mcp-neo4j-cypher@0.2.3", "--transport", "stdio"  ],
-  "env": {
-    "NEO4J_URI": "bolt://localhost:7687",
-    "NEO4J_USERNAME": "neo4j",
-    "NEO4J_PASSWORD": "cobolanalysis",
-    "NEO4J_DATABASE": "neo4j"
-  }
-}'
-
-# PostgreSQL MCP
-claude mcp add-json cobol-postgres '{
-  "command": "uvx",
-  "args": [
-    "postgres-mcp",
-    "--access-mode=unrestricted"
-  ],
-  "env": {
-    "DATABASE_URI": "postgresql://cobol:cobolanalysis@localhost:5432/cobolanalysis"
-  }
-}'
-```
-
-## Common Query Patterns
-
-### Neo4j Graph Queries
-
-**Field Dependency Analysis**:
-```cypher
-// Forward impact: find all fields affected by changing SOURCE-FIELD
-MATCH (source:ElementalField {name: "SOURCE-FIELD"})
-MATCH path = (source)-[:HAS_INPUT_FIELD*1..10]-(bf:BusinessFunction)-[:HAS_OUTPUT_FIELD*1..10]-(affected:ElementalField)
-RETURN DISTINCT affected.name, length(path) as impactDepth
-```
-
-**Backward Dependency Tracing**:
-```cypher
-// Find all fields that influence TARGET-FIELD
-MATCH (target:ElementalField {name: "TARGET-FIELD"})
-MATCH path = (source:ElementalField)-[:HAS_INPUT_FIELD*1..10]-(bf:BusinessFunction)-[:HAS_OUTPUT_FIELD*1..10]-(target)
-RETURN DISTINCT source.name, length(path) as dependencyDepth
-```
-
-**Complete DataFile Structure**:
-```cypher
-MATCH (dataFile:DataFile)
-OPTIONAL MATCH (dataFile)-[:HAS_RECORD]->(record:Record)
-OPTIONAL MATCH (record)-[:HAS_FIELD]->(groupField:GroupField)
-OPTIONAL MATCH (groupField)-[:HAS_FIELD]->(groupedElemental:ElementalField)
-// ... (see ai_docs/slim-neo4j-schema.md for complete pattern)
-```
-
-### PostgreSQL Queries
-
-**Entity Metadata**:
-```sql
--- Get entity descriptions by type
-SELECT "entityType", COUNT(*) as count
-FROM entitydescriptions
-GROUP BY "entityType"
-ORDER BY count DESC;
-```
-
-**Virtual File Content**:
-```sql
--- Get BusinessFunction virtual code
-SELECT vf.content
-FROM virtualfiles vf
-WHERE vf.businessfunctionid = 'FieldLevelBusinessFunction_123';
-```
-
-## Key Constraints
-
-- **Single Output Principle**: Every BusinessFunction produces exactly one output field
-- **Complete Influence**: All input fields must affect the output value
-- **Field Hierarchy**: Use base classes `(f:Field)` and `(bf:BusinessFunction)` for queries
-- **Recursive Relationships**: Fields can contain other Fields via `HAS_FIELD` relationships
-
-## Documentation Structure
-
-- `ai_docs/02-businessfunction-architecture.md`: Comprehensive technical architecture
-- `ai_docs/slim-neo4j-schema.md`: Neo4j schema reference and query patterns
-- `claude-setup.md`: MCP server configuration
-
-## Analysis Capabilities
-
-The system enables:
-- **Impact Analysis**: Trace downstream effects of field changes
-- **Dependency Mapping**: Identify all factors influencing a field
-- **Business Rule Documentation**: Extract business logic from scattered COBOL code
-- **Modernization Planning**: Identify microservice boundaries and API contracts
-- **Compliance Auditing**: Complete field lineage for regulatory requirements
+- Exploratory project - don't maintain legacy functionality
+- Use `bun add`/`bun remove` for dependency management (never edit package.json directly)
+- TypeScript for all code
+- Commander.js for CLI tools
+- CLI tools configurable via arguments/flags with stdin defaults

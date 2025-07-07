@@ -1,16 +1,66 @@
 {
-  "name": "agentic-data-exploration",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "name": "s3-csv-autosigner",
+  "version": "1.0.1",
+  "description": "A TypeScript library for uploading CSV files to S3 and generating presigned URLs, with automatic AWS configuration discovery",
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/s3-csv-autosigner.git"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "homepage": "https://github.com/your-username/s3-csv-autosigner#readme",
+  "bugs": {
+    "url": "https://github.com/your-username/s3-csv-autosigner/issues"
+  },
+  "keywords": [
+    "s3",
+    "csv",
+    "presigned-url",
+    "aws",
+    "upload",
+    "typescript",
+    "bun",
+    "esm"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "bun run clean && bun run build.ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "dev": "bun --hot index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "bun-dts": "^0.1.70",
+    "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.842.0",
+    "@aws-sdk/s3-request-presigner": "^3.842.0",
+    "chalk": "^5.4.1",
     "commander": "^14.0.0",
-    "neo4j-driver": "^5.28.1"
+    "dotenv": "^17.0.1",
+    "figures": "^6.1.0",
+    "inquirer": "^12.7.0"
   }
 }
